@@ -14,10 +14,10 @@ from utils.transforms import (
     TEST_TRANSFORMS,
     DEVICE,
 )
-import time
 import random
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix
+from tqdm import tqdm
 
 
 class Trainer:
@@ -49,7 +49,7 @@ class Trainer:
         x2, y2 = batch2
         x = cat([x1.to(self.device), x2.to(self.device)])
         y = cat([y1.to(self.device), y2.to(self.device)])
-        return (x, y)
+        return (x, y.long())
 
     # def backward_transfer(self):
     #     n_tasks = len(self.results)
@@ -162,72 +162,78 @@ class ERTrainer(Trainer):
         self.mem_size = mem_size
         self.mem_buffer = MemoryBuffer()
 
-    def train(self, dataloader):
-        # task_name = dataloader["task_name"]
-        # classes_name = dataloader["classes_name"]
-        # loader = dataloader["loader"]
-        loader = dataloader
+    def train(self, dataloader, task_name="na"):
         self.model1.train()
         self.model2.train()
-        start_time = time.time()
-        for b_id, batch in enumerate(loader):
-            # Stream data
-            X, y = batch
-            self.data_counter += len(X)
 
-            for __ in range(self.mem_iter):
-                mbatch = self.mem_buffer.get(size=self.mem_bs)
+        train_loss_model0_avg = 0
+        train_loss_model1_avg = 0
 
-                # Combined batch
-                X, y = self.combine_batch(batch, mbatch)
-                y = y.long()
+        # Only single viewing in online continual learning i.e. single epoch
+        with tqdm(dataloader, unit=" batch") as tloader:
+            for __, batch in enumerate(tloader):
+                tloader.set_description(f"[train] Task: {task_name}")
+                # Stream data
+                X, y = batch
+                self.data_counter += len(X)
 
-                # Default Loss Aug
-                X_aug = TRAIN_TRANSFORMS(X)
-                # For CCL
-                X_aug1 = AUG_TRANSFORMS1(X)
-                X_aug2 = AUG_TRANSFORMS2(X_aug1)
-                X_aug3 = AUG_TRANSFORMS3(X_aug2)
+                for __ in range(self.mem_iter):
+                    mbatch = self.mem_buffer.get(size=self.mem_bs)
 
-                # Baseline infer
-                x0 = self.model1.logits(X_aug)
-                x1 = self.model2.logits(X_aug)
+                    # Combined batch
+                    X, y = self.combine_batch(batch, mbatch)
 
-                # Multi-view infer
-                x00 = self.model1.logits(X)
-                x10 = self.model2.logits(X)
+                    # Default Loss Aug
+                    X_aug = TRAIN_TRANSFORMS(X)
+                    # For CCL
+                    X_aug1 = AUG_TRANSFORMS1(X)
+                    X_aug2 = AUG_TRANSFORMS2(X_aug1)
+                    X_aug3 = AUG_TRANSFORMS3(X_aug2)
 
-                x01 = self.model1.logits(X_aug1)
-                x11 = self.model2.logits(X_aug1)
+                    # Baseline infer
+                    x0 = self.model1(X_aug)
+                    x1 = self.model2(X_aug)
 
-                x02 = self.model1.logits(X_aug2)
-                x12 = self.model2.logits(X_aug2)
+                    # Multi-view infer
+                    x00 = self.model1(X)
+                    x10 = self.model2(X)
 
-                x03 = self.model1.logits(X_aug3)
-                x13 = self.model2.logits(X_aug3)
+                    x01 = self.model1(X_aug1)
+                    x11 = self.model2(X_aug1)
 
-                l0, l1 = self.criterion(
-                    (x0, x00, x01, x02, x03, x1, x10, x11, x12, x13, y)
+                    x02 = self.model1(X_aug2)
+                    x12 = self.model2(X_aug2)
+
+                    x03 = self.model1(X_aug3)
+                    x13 = self.model2(X_aug3)
+
+                    l0, l1 = self.criterion(
+                        (x0, x00, x01, x02, x03, x1, x10, x11, x12, x13, y)
+                    )
+                    train_loss_model0_avg = (
+                        (train_loss_model0_avg * self.iter) + l0.item()
+                    ) / (self.iter + 1)
+
+                    train_loss_model1_avg = (
+                        (train_loss_model1_avg * self.iter) + l1.item()
+                    ) / (self.iter + 1)
+
+                    self.optim1.zero_grad()
+                    l0.backward()
+                    self.optim1.step()
+
+                    self.optim2.zero_grad()
+                    l1.backward()
+                    self.optim2.step()
+
+                    self.iter += 1
+
+                self.mem_buffer.add(batch)
+
+                tloader.set_postfix(
+                    loss_model0=train_loss_model0_avg,
+                    loss_model1=train_loss_model1_avg,
                 )
-
-                self.optim1.zero_grad()
-                l0.backward()
-                self.optim1.step()
-
-                self.optim2.zero_grad()
-                l1.backward()
-                self.optim2.step()
-
-                self.iter += 1
-
-            self.mem_buffer.add(batch)
-
-        print(
-            f"Batch {b_id}/{len(dataloader)} "
-            f"Loss (Model 0) : {l0.item():.4f} "
-            f"Loss (Model 1) : {l1.item():.4f} "
-            f"time : {time.time() - start_time:.4f}s"
-        )
 
 
 class MemoryBuffer:
@@ -258,7 +264,8 @@ class MemoryBuffer:
         return imgs, lbls
 
     def add(self, batch):
-        for img, lbl in batch:
+        (imgs, lbls) = batch
+        for idx, img in enumerate(imgs):
             # in first case if buffer has space then just add data
             # in second case, as total data viewed becomes larger the
             # chance of replacing become smaller as the idx has to lie under
@@ -271,5 +278,5 @@ class MemoryBuffer:
                 data_idx = int(random.random() * (self.processed_count + 1))
             if data_idx < self.max_size:
                 self.buffer_imgs[data_idx] = img
-                self.buffer_labels[data_idx] = lbl
+                self.buffer_labels[data_idx] = lbls[idx]
             self.processed_count += 1
