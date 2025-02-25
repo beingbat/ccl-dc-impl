@@ -4,6 +4,7 @@ Differences can occur in the network heads and how it trained.
 So basically adding seperate train loops here for each method
 """
 
+import logging
 import torch
 from torch import nn, optim, cat, FloatTensor, LongTensor
 from utils.transforms import (
@@ -28,13 +29,13 @@ class Trainer:
     optim2: optim.Optimizer
     criterion: nn.Module
     device = DEVICE
-    results_ens = []
-    results_0 = []
-    results_1 = []
+    accuracies_ensemble = []
+    accuracies_0 = []
+    accuracies_1 = []
 
-    def __init__(self, model1, model2, optim1, optim2, criterion):
-        self.model1 = model1
-        self.model2 = model2
+    def __init__(self, model1: nn.Module, model2: nn.Module, optim1, optim2, criterion):
+        self.model1 = model1.to(self.device)
+        self.model2 = model2.to(self.device)
         self.optim1 = optim1
         self.optim2 = optim2
         self.criterion = criterion
@@ -51,97 +52,142 @@ class Trainer:
         y = cat([y1.to(self.device), y2.to(self.device)])
         return (x, y.long())
 
-    # def backward_transfer(self):
-    #     n_tasks = len(self.results)
-    #     bt = 0
-    #     for i in range(1, n_tasks):
-    #         for j in range(i):
-    #             bt += self.results[i][j] - self.results[j][j]
-    #     return bt / (n_tasks * (n_tasks - 1) / 2)
-
-    # def learning_accuracy(self):
-    #     n_tasks = len(self.results)
-    #     la = 0
-    #     for i in range(n_tasks):
-    #         la += self.results[i][i]
-    #     return la / n_tasks
-
-    # def relative_forgetting(self):
-    #     n_tasks = len(self.results)
-    #     rf = 0
-    #     max = np.nanmax(np.array(self.results), axis=0)
-    #     for i in range(n_tasks - 1):
-    #         if max[i] != 0:
-    #             rf += self.results_forgetting[-1][i] / max[i]
-    #         else:
-    #             rf += 1
-    #     return rf / n_tasks
-
-    def evaluate(self, dataloaders, task_id):
+    def evaluate(self, dataloaders, task_id, logger: logging):
+        logger.info("#####################################")
         with torch.no_grad():
             self.model1.eval()
             self.model2.eval()
 
-            accs_ens = []
-            accs_0 = []
-            accs_1 = []
-
-            pred_cls_ens = []
-            pred_cls_0 = []
-            pred_cls_1 = []
-            pred_y = []
+            accuracy_ensemble = []
+            accuracy_0 = []
+            accuracy_1 = []
 
             for j in range(task_id + 1):
-                task_y = None
-                task_pred_ens = None
-                task_pred_0 = None
-                task_pred_1 = None
+                task_y = []
+                task_pred_ens = []
+                task_pred_0 = []
+                task_pred_1 = []
+                logger.info(f"Task: {j}")
+                with tqdm(dataloaders[f"{j}"]["test"], unit=" batch") as tloader:
+                    for __, batch in enumerate(tloader):
+                        X, y = batch
+                        y = y.cpu().numpy()
+                        X = TEST_TRANSFORMS(X.to(self.device))
 
-                for b_id, batch in enumerate(dataloaders[f"{j}"]["test"]):
-                    X, y = batch
-                    y = y.cpu().numpy()
-                    X = TEST_TRANSFORMS(X.to(self.device))
+                        x0 = self.model1(X)
+                        x1 = self.model2(X)
+                        x_ens = (x0 + x1) / 2.0
 
-                    x0 = self.model1.logits(X)
-                    x1 = self.model2.logits(X)
-                    x_ens = (x0 + x1) / 2.0
+                        _b_pred_cls_ens = x_ens.argmax(dim=1).cpu().numpy()
+                        _b_pred_cls_0 = x0.argmax(dim=1).cpu().numpy()
+                        _b_pred_cls_1 = x1.argmax(dim=1).cpu().numpy()
 
-                    _b_pred_cls_ens = x_ens.argmax(dim=1).cpu().numpy()
-                    _b_pred_cls_0 = x0.argmax(dim=1).cpu().numpy()
-                    _b_pred_cls_1 = x1.argmax(dim=1).cpu().numpy()
+                        task_y = np.concatenate([task_y, y])
+                        task_pred_ens = np.concatenate([task_pred_ens, _b_pred_cls_ens])
+                        task_pred_0 = np.concatenate([task_pred_0, _b_pred_cls_0])
+                        task_pred_1 = np.concatenate([task_pred_1, _b_pred_cls_1])
 
-                    if b_id == 0:
-                        task_y = y
-                        task_pred_0 = _b_pred_cls_0
-                        task_pred_1 = _b_pred_cls_1
-                        task_pred_ens = _b_pred_cls_ens
-                    else:
-                        task_y = np.hstack([task_y, y])
-                        task_pred_ens = np.hstack([task_pred_ens, _b_pred_cls_ens])
-                        task_pred_0 = np.hstack([task_pred_0, _b_pred_cls_0])
-                        task_pred_1 = np.hstack([task_pred_1, _b_pred_cls_1])
+                    task_acc_ens = accuracy_score(task_y, task_pred_ens)
+                    task_acc_0 = accuracy_score(task_y, task_pred_0)
+                    task_acc_1 = accuracy_score(task_y, task_pred_1)
 
-                task_acc_ens = accuracy_score(task_y, task_pred_ens)
-                task_acc_0 = accuracy_score(task_y, task_pred_0)
-                task_acc_1 = accuracy_score(task_y, task_pred_1)
+                    accuracy_ensemble.append(task_acc_ens)
+                    accuracy_0.append(task_acc_0)
+                    accuracy_1.append(task_acc_1)
 
-                accs_ens.append(task_acc_ens)
-                accs_0.append(task_acc_0)
-                accs_1.append(task_acc_1)
-
-                pred_cls_ens = np.concatenate([pred_cls_ens, task_pred_ens])
-                pred_cls_0 = np.concatenate([pred_cls_0, task_pred_0])
-                pred_cls_1 = np.concatenate([pred_cls_1, task_pred_1])
-                pred_y = np.concatenate([pred_y, task_y])
+            self.accuracies_ensemble.append(accuracy_ensemble)
+            self.accuracies_0.append(accuracy_0)
+            self.accuracies_1.append(accuracy_1)
 
             for task_id in range(task_id + 1):
-                print(
-                    f"Task {task_id} Accuracy: {accs_ens[task_id]} "
-                    f"| {accs_0[task_id]} | {accs_1[task_id]}"
+                logger.info(
+                    f"Task {task_id} Accuracy: {accuracy_ensemble[task_id]} "
+                    f"| {accuracy_0[task_id]} | {accuracy_1[task_id]}"
                 )
-            self.results_ens.append(accs_ens)
-            self.results_0.append(accs_0)
-            self.results_1.append(accs_1)
+
+            aa_ensemble = np.mean(accuracy_ensemble)
+            aa_0 = np.mean(accuracy_0)
+            aa_1 = np.mean(accuracy_1)
+
+            avg_la_ensemble = np.mean(
+                [task_accuracies[-1] for task_accuracies in self.accuracies_ensemble]
+            )
+            avg_la_0 = np.mean(
+                [task_accuracies[-1] for task_accuracies in self.accuracies_0]
+            )
+            avg_la_1 = np.mean(
+                [task_accuracies[-1] for task_accuracies in self.accuracies_1]
+            )
+
+            task_view_ensemble = []
+            task_view_0 = []
+            task_view_1 = []
+            for i in range(len(self.accuracies_ensemble)):
+                task_view_ensemble.append([])
+                task_view_0.append([])
+                task_view_1.append([])
+                for j in range(len(self.accuracies_ensemble[i])):
+                    task_view_ensemble[j].append(self.accuracies_ensemble[i][j])
+                    task_view_0[j].append(self.accuracies_0[i][j])
+                    task_view_1[j].append(self.accuracies_1[i][j])
+
+            fm_ensemble = []
+            fm_0 = []
+            fm_1 = []
+
+            rf_ensemble = []
+            rf_0 = []
+            rf_1 = []
+            logger.info("Forgetting Measure")
+            for tsk_id in range(len(task_view_ensemble)):
+                if len(task_view_ensemble[tsk_id]) > 1:
+                    fm_ensemble.append(
+                        np.max(task_view_ensemble[tsk_id])
+                        - task_view_ensemble[tsk_id][-1]
+                    )
+                    fm_0.append(np.max(task_view_0[tsk_id]) - task_view_0[tsk_id][-1])
+                    fm_1.append(np.max(task_view_1[tsk_id]) - task_view_1[tsk_id][-1])
+
+                    rf_ensemble.append(
+                        1
+                        - task_view_ensemble[tsk_id][-1]
+                        / np.max(task_view_ensemble[tsk_id])
+                    )
+                    rf_0.append(
+                        1 - task_view_0[tsk_id][-1] / np.max(task_view_0[tsk_id])
+                    )
+                    rf_1.append(
+                        1 - task_view_1[tsk_id][-1] / np.max(task_view_1[tsk_id])
+                    )
+
+                    logger.info(
+                        f"FM Task {tsk_id}: {format(fm_ensemble[-1], '.4f')} "
+                        f"| {format(fm_0[-1], '.4f')} | {format(fm_1[-1], '.4f')}"
+                    )
+
+                    logger.info(
+                        f"RF Task {tsk_id}: {format(rf_ensemble[-1], '.4f')} "
+                        f"| {format(rf_0[-1], '.4f')} | {format(rf_1[-1], '.4f')}"
+                    )
+            if len(task_view_ensemble) > 1:
+                logger.info(
+                    f"FM Mean: {format(np.mean(fm_ensemble), '.4f')} | {format(np.mean(fm_0), '.4f')} | {format(np.mean(fm_1), '.4f')}"
+                )
+                logger.info(
+                    f"RF Mean: {format(np.mean(rf_ensemble), '.4f')} | {np.mean(rf_0)} | {np.mean(rf_1)}"
+                )
+
+            logger.info(
+                f"Averaging Accuracy: {format(aa_ensemble, '.4f')} "
+                f"| {format(aa_0, '.4f')} | {format(aa_1, '.4f')}"
+            )
+
+            logger.info(
+                f"Averaged Learning Accuracy: {format(avg_la_ensemble, '.4f')} "
+                f"| {format(avg_la_0, '.4f')} | {format(avg_la_1, '.4f')}"
+            )
+
+            return aa_ensemble, aa_0, aa_1
 
 
 class ERTrainer(Trainer):
@@ -171,8 +217,12 @@ class ERTrainer(Trainer):
 
         # Only single viewing in online continual learning i.e. single epoch
         with tqdm(dataloader, unit=" batch") as tloader:
-            for __, batch in enumerate(tloader):
+            for b_id, batch in enumerate(tloader):
                 tloader.set_description(f"[train] Task: {task_name}")
+
+                # if b_id > 1:
+                #     break
+
                 # Stream data
                 X, y = batch
                 self.data_counter += len(X)
@@ -231,8 +281,7 @@ class ERTrainer(Trainer):
                 self.mem_buffer.add(batch)
 
                 tloader.set_postfix(
-                    loss_model0=train_loss_model0_avg,
-                    loss_model1=train_loss_model1_avg,
+                    loss_model0=train_loss_model0_avg, loss_model1=train_loss_model1_avg
                 )
 
 

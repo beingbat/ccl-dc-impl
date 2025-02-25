@@ -9,9 +9,15 @@ class Loss(nn.Module):
     """
 
     def __init__(
-        self, base_criterion, cls_criterion, kd_lambda=0.5, baseline_lambda=0.5
+        self,
+        base_criterion,
+        cls_criterion,
+        only_base=False,
+        kd_lambda=0.5,
+        baseline_lambda=0.5,
     ):
         super().__init__()
+        self.only_base = only_base
         self.base_criterion = base_criterion
         self.cls_criterion = cls_criterion
         self.kdl = kd_lambda
@@ -20,48 +26,49 @@ class Loss(nn.Module):
     def forward(self, data):
         (x0, x00, x01, x02, x03, x1, x10, x11, x12, x13, y) = data
 
-        # TODO: baseline loss assumed to be class loss; fix this
-
         # baseline loss
         loss1 = self.base_criterion(x0, y)
         loss2 = self.base_criterion(x1, y)
 
-        # cls loss
-        loss1 += (
-            self.cls_criterion(x00, y)
-            + self.cls_criterion(x01, y)
-            + self.cls_criterion(x02, y)
-            + self.cls_criterion(x03, y)
-        )
+        if not self.only_base:
+            # cls loss
+            loss1 += (
+                self.cls_criterion(x00, y)
+                + self.cls_criterion(x01, y)
+                + self.cls_criterion(x02, y)
+                + self.cls_criterion(x03, y)
+            )
 
-        loss2 += (
-            self.cls_criterion(x10, y)
-            + self.cls_criterion(x11, y)
-            + self.cls_criterion(x12, y)
-            + self.cls_criterion(x13, y)
-        )
+            loss2 += (
+                self.cls_criterion(x10, y)
+                + self.cls_criterion(x11, y)
+                + self.cls_criterion(x12, y)
+                + self.cls_criterion(x13, y)
+            )
 
-        # ccl and dc Loss
-        loss1_dc = (
-            self.kl_loss(x00, x10.detach())  # ccl
-            + self.kl_loss(x00, x11.detach())  # dc
-            + self.kl_loss(x01, x12.detach())
-            + self.kl_loss(x02, x13.detach())
-        )
+            # ccl and dc Loss
+            loss1_dc = (
+                self.kl_loss(x00, x10.detach())  # ccl
+                + self.kl_loss(x00, x11.detach())  # dc
+                + self.kl_loss(x01, x12.detach())
+                + self.kl_loss(x02, x13.detach())
+            )
 
-        loss2_dc = (
-            self.kl_loss(x10, x00.detach())  # ccl
-            + self.kl_loss(x10, x01.detach())  # dc
-            + self.kl_loss(x11, x02.detach())
-            + self.kl_loss(x12, x03.detach())
-        )
+            loss2_dc = (
+                self.kl_loss(x10, x00.detach())  # ccl
+                + self.kl_loss(x10, x01.detach())  # dc
+                + self.kl_loss(x11, x02.detach())
+                + self.kl_loss(x12, x03.detach())
+            )
 
-        # Total Loss
-        l1 = self.basel * loss1 + self.kdl * loss1_dc
-        l2 = self.basel * loss2 + self.kdl * loss2_dc
+        l1 = loss1
+        l2 = loss2
 
-        # print(f"Loss (Peer1) : {l1.item():.4f} "
-        #       f"Loss (Peer2) : {l2.item():.4f} ", end="\r")
+        if not self.only_base:
+            l1 *= self.basel
+            l2 *= self.basel
+            l1 += self.kdl * loss1_dc
+            l2 += self.kdl * loss2_dc
 
         return l1, l2
 

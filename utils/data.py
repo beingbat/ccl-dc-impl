@@ -5,6 +5,7 @@ from torchvision.datasets.cifar import CIFAR10
 from torch.utils.data import DataLoader
 
 from utils.transforms import LOADER_TRANSFORMS
+import logging
 
 
 class CIFAR10Partial(CIFAR10):
@@ -31,7 +32,12 @@ class CIFAR10Partial(CIFAR10):
         return len(self.indexes)
 
 
-def get_dataloaders(dataset="cifar10", total_classes=10, classes_per_task=2):
+def get_dataloaders(
+    logger: logging,
+    dataset="cifar10",
+    total_classes=10,
+    classes_per_task=2,
+):
     """
     Creates Task Incremental DataLoaders for given dataset
 
@@ -46,21 +52,23 @@ def get_dataloaders(dataset="cifar10", total_classes=10, classes_per_task=2):
      `List[Dict]` : List of dataloaders in form of dict with some meta information
         as well i.e. classes used, task id etc.
     """
+    logs_txt = ""
     dataloaders = {}
     dataset = "cifar10"
     data_path = "./data"
     batch_size = 10
     num_workers = 0
+    logger.info(f"DATASET: {dataset}")
 
     # shuffle class order in dataloader
     clss = np.arange(total_classes)
     np.random.shuffle(clss)
     clss_order = clss.tolist()
 
-    print("Creating Data with incremental tasks with classes")
+    logger.info("Creating Data with incremental tasks with classes")
     for task_id, i in enumerate(range(0, total_classes, classes_per_task)):
         selected_classes = clss_order[i : i + classes_per_task]
-        print(f"Task ID: {task_id} | Classes: {selected_classes}")
+        logger.info(f"Task ID: {task_id} | Classes: {selected_classes}")
         if dataset == "cifar10":
             dataset_train = CIFAR10Partial(
                 data_path,
