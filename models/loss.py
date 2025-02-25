@@ -48,14 +48,14 @@ class Loss(nn.Module):
 
             # ccl and dc Loss
             loss1_dc = (
-                self.kl_loss(x00, x10.detach())  # ccl
+                self.kl_loss(x03, x13.detach())  # ccl
                 + self.kl_loss(x00, x11.detach())  # dc
                 + self.kl_loss(x01, x12.detach())
                 + self.kl_loss(x02, x13.detach())
             )
 
             loss2_dc = (
-                self.kl_loss(x10, x00.detach())  # ccl
+                self.kl_loss(x13, x03.detach())  # ccl
                 + self.kl_loss(x10, x01.detach())  # dc
                 + self.kl_loss(x11, x02.detach())
                 + self.kl_loss(x12, x03.detach())
