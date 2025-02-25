@@ -36,31 +36,38 @@ def main():
 
     logger = setup_logging()
 
-    for iteration_id in range(10):
-        if iteration_id < 5:
-            base = True
-        else:
-            base = False
+    for c_mem_size in [500, 1000]:
+        for iteration_id in range(6):
+            if iteration_id < 3:
+                base = True
+            else:
+                base = False
 
-        logger.info(f"Iteration no. {iteration_id}")
-        dataloaders, classes_order = get_dataloaders(
-            logger=logger,
-            dataset=dataset,
-            total_classes=10,
-            classes_per_task=classes_per_task,
-        )
-        model1, optim1 = get_model(name)
-        model2, optim2 = get_model(name)
-        criterion = get_criterion(name, base)
-        trainer_cls = get_trainer(name)
-        trainer: Trainer = trainer_cls(model1, model2, optim1, optim2, criterion)
+            logger.info(f"Iteration no. {iteration_id}")
+            logger.info(
+                f"{name.upper()}{' + CCL-DC' if not base else ''} | "
+                f"Dataset: {dataset.upper()} | Mem Size: {c_mem_size}"
+            )
+            dataloaders, classes_order = get_dataloaders(
+                logger=logger,
+                dataset=dataset,
+                total_classes=10,
+                classes_per_task=classes_per_task,
+            )
+            model1, optim1 = get_model(name)
+            model2, optim2 = get_model(name)
+            criterion = get_criterion(name, base)
+            trainer_cls = get_trainer(name)
+            trainer: Trainer = trainer_cls(
+                model1, model2, optim1, optim2, criterion, mem_size=c_mem_size
+            )
 
-        for task_idx, task_name in enumerate(dataloaders):
-            task_classes = classes_order[task_idx]
-            train_dataloader = dataloaders[task_name]["train"]
-            logger.info(f"Task: {task_name}; Classes: {task_classes}")
-            trainer.train(train_dataloader, task_name)
-            trainer.evaluate(dataloaders, task_idx, logger=logger)
+            for task_idx, task_name in enumerate(dataloaders):
+                task_classes = classes_order[task_idx]
+                train_dataloader = dataloaders[task_name]["train"]
+                logger.info(f"Task: {task_name}; Classes: {task_classes}")
+                trainer.train(train_dataloader, task_name)
+                trainer.evaluate(dataloaders, task_idx, logger=logger)
 
 
 if __name__ == "__main__":

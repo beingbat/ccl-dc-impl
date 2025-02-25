@@ -1,5 +1,8 @@
 from torch import nn
 
+# source: https://pytorch.org/vision/main/_modules/torchvision/models/resnet.html
+# and: https://github.com/danielchyeh/ImageNet-100-Pytorch/blob/main/networks/resnet.py
+
 EPSILON = 1e-10
 
 bn = True
