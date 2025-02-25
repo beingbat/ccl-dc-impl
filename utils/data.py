@@ -52,7 +52,6 @@ def get_dataloaders(
      `List[Dict]` : List of dataloaders in form of dict with some meta information
         as well i.e. classes used, task id etc.
     """
-    logs_txt = ""
     dataloaders = {}
     dataset = "cifar10"
     data_path = "./data"

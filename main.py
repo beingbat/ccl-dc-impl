@@ -37,6 +37,11 @@ def main():
     logger = setup_logging()
 
     for iteration_id in range(10):
+        if iteration_id < 5:
+            base = True
+        else:
+            base = False
+
         logger.info(f"Iteration no. {iteration_id}")
         dataloaders, classes_order = get_dataloaders(
             logger=logger,
@@ -46,7 +51,7 @@ def main():
         )
         model1, optim1 = get_model(name)
         model2, optim2 = get_model(name)
-        criterion = get_criterion(name)
+        criterion = get_criterion(name, base)
         trainer_cls = get_trainer(name)
         trainer: Trainer = trainer_cls(model1, model2, optim1, optim2, criterion)
 

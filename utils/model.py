@@ -15,10 +15,10 @@ def get_model(name="er", no_cls=10, lr=0.0005, weight_decay=1e-4):
     raise NotImplementedError
 
 
-def get_criterion(name="er"):
+def get_criterion(name="er", only_base=False):
     if name == "er":
         criteria = nn.CrossEntropyLoss()
-        return Loss(criteria, criteria)
+        return Loss(criteria, criteria, only_base=only_base)
     raise NotImplementedError
 
 
