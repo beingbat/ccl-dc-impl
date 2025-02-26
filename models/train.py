@@ -29,9 +29,6 @@ class Trainer:
     optim2: optim.Optimizer
     criterion: nn.Module
     device = DEVICE
-    accuracies_ensemble = []
-    accuracies_0 = []
-    accuracies_1 = []
 
     def __init__(self, model1: nn.Module, model2: nn.Module, optim1, optim2, criterion):
         self.model1 = model1.to(self.device)
@@ -41,6 +38,9 @@ class Trainer:
         self.criterion = criterion
         self.data_counter = 0
         self.iter = 0
+        self.accuracies_ensemble = []
+        self.accuracies_0 = []
+        self.accuracies_1 = []
 
     def train():
         raise NotImplementedError
