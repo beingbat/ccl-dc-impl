@@ -174,7 +174,7 @@ class Trainer:
                     f"FM Mean: {format(np.mean(fm_ensemble), '.4f')} | {format(np.mean(fm_0), '.4f')} | {format(np.mean(fm_1), '.4f')}"
                 )
                 logger.info(
-                    f"RF Mean: {format(np.mean(rf_ensemble), '.4f')} | {np.mean(rf_0)} | {np.mean(rf_1)}"
+                    f"RF Mean: {format(np.mean(rf_ensemble), '.4f')} | {format(np.mean(rf_0), '.4f')} | {format(np.mean(rf_1), '.4f')}"
                 )
 
             logger.info(
@@ -319,8 +319,8 @@ class DerppTrainer(Trainer):
             for b_id, batch in enumerate(tloader):
                 tloader.set_description(f"[train] Task: {task_name}")
 
-                # if b_id > 1:
-                #     break
+                if b_id > 1:
+                    break
 
                 # Stream data
                 X, y_ = batch
