@@ -31,10 +31,13 @@ def main():
     # fa7cdfad1a5aaf8370ebeda47a1ff1c3-Paper.pdf
 
     name = "er"
+    name = "derpp"
     dataset = "cifar10"
     classes_per_task = 2
+    total_classes = 10
 
     logger = setup_logging()
+    logger.info(f"Total Classes {total_classes} | Classes Per Task: {classes_per_task}")
 
     for c_mem_size in [500, 1000]:
         for iteration_id in range(6):
@@ -51,12 +54,12 @@ def main():
             dataloaders, classes_order = get_dataloaders(
                 logger=logger,
                 dataset=dataset,
-                total_classes=10,
+                total_classes=total_classes,
                 classes_per_task=classes_per_task,
             )
             model1, optim1 = get_model(name)
             model2, optim2 = get_model(name)
-            criterion = get_criterion(name, base)
+            criterion = get_criterion(name, base, total_classes)
             trainer_cls = get_trainer(name)
             trainer: Trainer = trainer_cls(
                 model1, model2, optim1, optim2, criterion, mem_size=c_mem_size

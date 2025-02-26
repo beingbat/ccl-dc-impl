@@ -50,7 +50,7 @@ class Trainer:
         x2, y2 = batch2
         x = cat([x1.to(self.device), x2.to(self.device)])
         y = cat([y1.to(self.device), y2.to(self.device)])
-        return (x, y.long())
+        return (x, y)
 
     def evaluate(self, dataloaders, task_id, logger: logging):
         logger.info("#####################################")
@@ -260,6 +260,140 @@ class ERTrainer(Trainer):
                     l0, l1 = self.criterion(
                         (x0, x00, x01, x02, x03, x1, x10, x11, x12, x13, y)
                     )
+                    train_loss_model0_avg = (
+                        (train_loss_model0_avg * self.iter) + l0.item()
+                    ) / (self.iter + 1)
+
+                    train_loss_model1_avg = (
+                        (train_loss_model1_avg * self.iter) + l1.item()
+                    ) / (self.iter + 1)
+
+                    self.optim1.zero_grad()
+                    l0.backward()
+                    self.optim1.step()
+
+                    self.optim2.zero_grad()
+                    l1.backward()
+                    self.optim2.step()
+
+                    self.iter += 1
+
+                self.mem_buffer.add(batch)
+
+                tloader.set_postfix(
+                    loss_model0=train_loss_model0_avg, loss_model1=train_loss_model1_avg
+                )
+
+
+class DerppTrainer(Trainer):
+    def __init__(
+        self,
+        model1,
+        model2,
+        optim1,
+        optim2,
+        criterion,
+        mem_iter=1,
+        mem_bs=64,
+        mem_size=500,
+    ):
+        super().__init__(model1, model2, optim1, optim2, criterion)
+        self.mem_iter = mem_iter
+        self.mem_bs = mem_bs
+        self.mem_size = mem_size
+        self.mem_buffer = MemoryBuffer()
+
+    def train(self, dataloader, task_name="na"):
+        self.model1.train()
+        self.model2.train()
+
+        train_loss_model0_avg = 0
+        train_loss_model1_avg = 0
+
+        # Only single viewing in online continual learning i.e. single epoch
+        with tqdm(dataloader, unit=" batch") as tloader:
+            for b_id, batch in enumerate(tloader):
+                tloader.set_description(f"[train] Task: {task_name}")
+
+                # if b_id > 1:
+                #     break
+
+                # Stream data
+                X, y_ = batch
+                self.data_counter += len(X)
+
+                for __ in range(self.mem_iter):
+                    # Default Loss Aug
+                    X_aug = TRAIN_TRANSFORMS(X)
+
+                    # Baseline infer
+                    x0 = self.model1(X_aug)
+                    x1 = self.model2(X_aug)
+
+                    m0batch = self.mem_buffer.get(size=self.mem_bs)
+                    mem0_X, mem0_y = m0batch
+
+                    m1batch = self.mem_buffer.get(size=self.mem_bs)
+                    mem1_X, mem1_y = m1batch
+
+                    if mem0_X.size(0) > 0:
+                        mem0_X_aug = TRAIN_TRANSFORMS(mem0_X)
+                        m00 = self.model1(mem0_X_aug)
+                        m10 = self.model2(mem0_X_aug)
+                        mem1_X_aug = TRAIN_TRANSFORMS(mem1_X)
+                        m01 = self.model1(mem1_X_aug)
+                        m11 = self.model2(mem1_X_aug)
+                    else:
+                        m00 = None
+                        m01 = None
+                        m10 = None
+                        m11 = None
+                        mem0_y = None
+                        mem1_y = None
+
+                    # Combined batch
+                    X, y = self.combine_batch(batch, m1batch)
+                    # For CCL
+                    X_aug1 = AUG_TRANSFORMS1(X)
+                    X_aug2 = AUG_TRANSFORMS2(X_aug1)
+                    X_aug3 = AUG_TRANSFORMS3(X_aug2)
+
+                    # Multi-view infer
+                    x00 = self.model1(X)
+                    x10 = self.model2(X)
+
+                    x01 = self.model1(X_aug1)
+                    x11 = self.model2(X_aug1)
+
+                    x02 = self.model1(X_aug2)
+                    x12 = self.model2(X_aug2)
+
+                    x03 = self.model1(X_aug3)
+                    x13 = self.model2(X_aug3)
+
+                    l0, l1 = self.criterion(
+                        (
+                            x0,
+                            m00,
+                            m01,
+                            x00,
+                            x01,
+                            x02,
+                            x03,
+                            x1,
+                            m10,
+                            m11,
+                            x10,
+                            x11,
+                            x12,
+                            x13,
+                            y_,
+                            y,
+                            mem0_y,
+                            mem1_y,
+                        )
+                    )
+
                     train_loss_model0_avg = (
                         (train_loss_model0_avg * self.iter) + l0.item()
                     ) / (self.iter + 1)

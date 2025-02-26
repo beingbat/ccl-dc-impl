@@ -87,3 +87,104 @@ class Loss(nn.Module):
             temperature**2
         )
         return lkd
+
+
+class LossDerpp(Loss):
+    def __init__(
+        self,
+        base_criterion,
+        cls_criterion,
+        only_base=False,
+        class_count=2,
+        kd_lambda=0.5,
+        baseline_lambda=0.5,
+        alpha=0.2,
+        beta=1.0,
+    ):
+        super().__init__(
+            base_criterion,
+            cls_criterion,
+            only_base=only_base,
+            kd_lambda=kd_lambda,
+            baseline_lambda=baseline_lambda,
+        )
+        self.class_count = class_count
+        self.alpha = alpha
+        self.beta = beta
+
+    def forward(self, data):
+        (
+            x0,
+            m00,
+            m01,
+            x00,
+            x01,
+            x02,
+            x03,
+            x1,
+            m10,
+            m11,
+            x10,
+            x11,
+            x12,
+            x13,
+            y_,
+            y,
+            mem0_y,
+            mem1_y,
+        ) = data
+
+        # baseline loss
+        loss1 = self.base_criterion(x0, y_.long())
+        loss2 = self.base_criterion(x1, y_.long())
+        if mem0_y is not None:
+            loss1 += self.alpha * F.mse_loss(
+                m00, F.one_hot(mem0_y, num_classes=self.class_count).float()
+            )
+            loss2 += self.alpha * F.mse_loss(
+                m10, F.one_hot(mem0_y, num_classes=self.class_count).float()
+            )
+
+            loss1 += self.beta * self.base_criterion(m01, mem1_y.long())
+            loss2 += self.beta * self.base_criterion(m11, mem1_y.long())
+
+        if not self.only_base:
+            y = y.long()
+            # cls loss
+            loss1 += (
+                self.cls_criterion(x00, y)
+                + self.cls_criterion(x01, y)
+                + self.cls_criterion(x02, y)
+                + self.cls_criterion(x03, y)
+            ) * self.basel
+
+            loss2 += (
+                self.cls_criterion(x10, y)
+                + self.cls_criterion(x11, y)
+                + self.cls_criterion(x12, y)
+                + self.cls_criterion(x13, y)
+            ) * self.basel
+
+            # ccl and dc Loss
+            loss1_dc = (
+                self.kl_loss(x03, x13.detach())  # ccl
+                + self.kl_loss(x00, x11.detach())  # dc
+                + self.kl_loss(x01, x12.detach())
+                + self.kl_loss(x02, x13.detach())
+            )
+
+            loss2_dc = (
+                self.kl_loss(x13, x03.detach())  # ccl
+                + self.kl_loss(x10, x01.detach())  # dc
+                + self.kl_loss(x11, x02.detach())
+                + self.kl_loss(x12, x03.detach())
+            )
+
+        l1 = loss1
+        l2 = loss2
+
+        if not self.only_base:
+            l1 += self.kdl * loss1_dc
+            l2 += self.kdl * loss2_dc
+
+        return l1, l2
