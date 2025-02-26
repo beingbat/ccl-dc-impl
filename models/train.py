@@ -235,7 +235,7 @@ class ERTrainer(Trainer):
                         # Combined batch
                         X, y = self.combine_batch(batch, mbatch)
                         X = X.to(self.device)
-                        y = y.to(self.device)
+                        y = y.to(self.device).long()
 
                         # Default Loss Aug
                         X_aug = TRAIN_TRANSFORMS(X)

@@ -96,7 +96,7 @@ class LossDerpp(Loss):
         cls_criterion,
         only_base=False,
         class_count=2,
-        kd_lambda=2.0,
+        kd_lambda=1.0,
         baseline_lambda=0.5,
         alpha=0.2,
         beta=1.0,
