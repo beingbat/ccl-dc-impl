@@ -231,56 +231,56 @@ class ERTrainer(Trainer):
 
                 for __ in range(self.mem_iter):
                     mbatch = self.mem_buffer.get(size=self.mem_bs)
+                    if mbatch[0].size(0) > 0:
+                        # Combined batch
+                        X, y = self.combine_batch(batch, mbatch)
+                        X = X.to(self.device)
+                        y = y.to(self.device)
 
-                    # Combined batch
-                    X, y = self.combine_batch(batch, mbatch)
-                    X = X.to(self.device)
-                    y = y.to(self.device)
+                        # Default Loss Aug
+                        X_aug = TRAIN_TRANSFORMS(X)
+                        # For CCL
+                        X_aug1 = AUG_TRANSFORMS1(X)
+                        X_aug2 = AUG_TRANSFORMS2(X_aug1)
+                        X_aug3 = AUG_TRANSFORMS3(X_aug2)
 
-                    # Default Loss Aug
-                    X_aug = TRAIN_TRANSFORMS(X)
-                    # For CCL
-                    X_aug1 = AUG_TRANSFORMS1(X)
-                    X_aug2 = AUG_TRANSFORMS2(X_aug1)
-                    X_aug3 = AUG_TRANSFORMS3(X_aug2)
+                        # Baseline infer
+                        x0 = self.model1(X_aug)
+                        x1 = self.model2(X_aug)
 
-                    # Baseline infer
-                    x0 = self.model1(X_aug)
-                    x1 = self.model2(X_aug)
+                        # Multi-view infer
+                        x00 = self.model1(X)
+                        x10 = self.model2(X)
 
-                    # Multi-view infer
-                    x00 = self.model1(X)
-                    x10 = self.model2(X)
+                        x01 = self.model1(X_aug1)
+                        x11 = self.model2(X_aug1)
 
-                    x01 = self.model1(X_aug1)
-                    x11 = self.model2(X_aug1)
+                        x02 = self.model1(X_aug2)
+                        x12 = self.model2(X_aug2)
 
-                    x02 = self.model1(X_aug2)
-                    x12 = self.model2(X_aug2)
+                        x03 = self.model1(X_aug3)
+                        x13 = self.model2(X_aug3)
 
-                    x03 = self.model1(X_aug3)
-                    x13 = self.model2(X_aug3)
+                        l0, l1 = self.criterion(
+                            (x0, x00, x01, x02, x03, x1, x10, x11, x12, x13, y)
+                        )
+                        train_loss_model0_avg = (
+                            (train_loss_model0_avg * self.iter) + l0.item()
+                        ) / (self.iter + 1)
 
-                    l0, l1 = self.criterion(
-                        (x0, x00, x01, x02, x03, x1, x10, x11, x12, x13, y)
-                    )
-                    train_loss_model0_avg = (
-                        (train_loss_model0_avg * self.iter) + l0.item()
-                    ) / (self.iter + 1)
+                        train_loss_model1_avg = (
+                            (train_loss_model1_avg * self.iter) + l1.item()
+                        ) / (self.iter + 1)
 
-                    train_loss_model1_avg = (
-                        (train_loss_model1_avg * self.iter) + l1.item()
-                    ) / (self.iter + 1)
+                        self.optim1.zero_grad()
+                        l0.backward()
+                        self.optim1.step()
 
-                    self.optim1.zero_grad()
-                    l0.backward()
-                    self.optim1.step()
+                        self.optim2.zero_grad()
+                        l1.backward()
+                        self.optim2.step()
 
-                    self.optim2.zero_grad()
-                    l1.backward()
-                    self.optim2.step()
-
-                    self.iter += 1
+                        self.iter += 1
 
                 self.mem_buffer.add(batch)
 

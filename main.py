@@ -31,7 +31,7 @@ def main():
     # fa7cdfad1a5aaf8370ebeda47a1ff1c3-Paper.pdf
 
     name = "er"
-    name = "derpp"
+    # name = "derpp"
     dataset = "cifar10"
     classes_per_task = 2
     total_classes = 10
