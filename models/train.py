@@ -225,6 +225,8 @@ class ERTrainer(Trainer):
 
                 # Stream data
                 X, y = batch
+                X = X.to(self.device)
+                y = y.to(self.device)
                 self.data_counter += len(X)
 
                 for __ in range(self.mem_iter):
@@ -232,6 +234,8 @@ class ERTrainer(Trainer):
 
                     # Combined batch
                     X, y = self.combine_batch(batch, mbatch)
+                    X = X.to(self.device)
+                    y = y.to(self.device)
 
                     # Default Loss Aug
                     X_aug = TRAIN_TRANSFORMS(X)
@@ -320,6 +324,8 @@ class DerppTrainer(Trainer):
 
                 # Stream data
                 X, y_ = batch
+                X = X.to(self.device)
+                y_ = y_.to(self.device)
                 self.data_counter += len(X)
 
                 for __ in range(self.mem_iter):
@@ -337,12 +343,18 @@ class DerppTrainer(Trainer):
                     mem1_X, mem1_y = m1batch
 
                     if mem0_X.size(0) > 0:
+                        mem0_X = mem0_X.to(self.device)
+                        mem1_X = mem1_X.to(self.device)
                         mem0_X_aug = TRAIN_TRANSFORMS(mem0_X)
                         m00 = self.model1(mem0_X_aug)
                         m10 = self.model2(mem0_X_aug)
+                        mem0_y = mem0_y.to(self.device)
+
                         mem1_X_aug = TRAIN_TRANSFORMS(mem1_X)
                         m01 = self.model1(mem1_X_aug)
                         m11 = self.model2(mem1_X_aug)
+                        mem1_y = mem1_y.to(self.device)
+
                     else:
                         m00 = None
                         m01 = None
@@ -353,6 +365,8 @@ class DerppTrainer(Trainer):
 
                     # Combined batch
                     X, y = self.combine_batch(batch, m1batch)
+                    X = X.to(self.device)
+                    y = y.to(self.device)
                     # For CCL
                     X_aug1 = AUG_TRANSFORMS1(X)
                     X_aug2 = AUG_TRANSFORMS2(X_aug1)
@@ -428,8 +442,8 @@ class MemoryBuffer:
         self.shape = shape
         self.buffer_imgs = FloatTensor(
             self.max_size, self.shape[0], self.shape[1], self.shape[2]
-        )
-        self.buffer_labels = LongTensor(self.max_size)
+        ).to(DEVICE)
+        self.buffer_labels = LongTensor(self.max_size).to(DEVICE)
 
     def get(self, size):
         if self.processed_count < size:

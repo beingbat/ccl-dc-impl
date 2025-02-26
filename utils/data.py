@@ -56,7 +56,7 @@ def get_dataloaders(
     dataset = "cifar10"
     data_path = "./data"
     batch_size = 10
-    num_workers = 0
+    num_workers = 4
     logger.info(f"DATASET: {dataset}")
 
     # shuffle class order in dataloader
