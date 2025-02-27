@@ -319,8 +319,8 @@ class DerppTrainer(Trainer):
             for b_id, batch in enumerate(tloader):
                 tloader.set_description(f"[train] Task: {task_name}")
 
-                if b_id > 1:
-                    break
+                # if b_id > 2:
+                #     break
 
                 # Stream data
                 X, y_ = batch
@@ -364,7 +364,7 @@ class DerppTrainer(Trainer):
                         mem0_outs = None
 
                     # Combined batch
-                    X, y = self.combine_batch(batch, m1batch)
+                    X, y = self.combine_batch(batch, m1batch[:2])
                     X = X.to(self.device)
                     y = y.to(self.device)
                     # For CCL
@@ -427,7 +427,7 @@ class DerppTrainer(Trainer):
                     self.iter += 1
 
                 out = (x0 + x1) / 2.0
-                self.mem_buffer.add((batch[0], batch[1], out))
+                self.mem_buffer.add((batch[0], batch[1], out.detach()))
 
                 tloader.set_postfix(
                     loss_model0=train_loss_model0_avg, loss_model1=train_loss_model1_avg

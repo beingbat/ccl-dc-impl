@@ -30,8 +30,8 @@ def main():
     # https://papers.nips.cc/paper_files/paper/2019/file/
     # fa7cdfad1a5aaf8370ebeda47a1ff1c3-Paper.pdf
 
-    name = "er"
-    # name = "derpp"
+    # name = "er"
+    name = "derpp"
     dataset = "cifar10"
     classes_per_task = 2
     total_classes = 10
@@ -40,8 +40,8 @@ def main():
     logger.info(f"Total Classes {total_classes} | Classes Per Task: {classes_per_task}")
 
     for c_mem_size in [500, 1000]:
-        for iteration_id in range(6):
-            if iteration_id < 3:
+        for iteration_id in range(10):
+            if iteration_id < 5:
                 base = True
             else:
                 base = False
