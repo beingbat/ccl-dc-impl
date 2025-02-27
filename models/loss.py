@@ -138,12 +138,8 @@ class LossDerpp(Loss):
         loss1 = self.base_criterion(x0, y_.long())
         loss2 = self.base_criterion(x1, y_.long())
         if mem0_y is not None:
-            loss1 += self.alpha * F.mse_loss(
-                m00, F.one_hot(mem0_y, num_classes=self.class_count).float()
-            )
-            loss2 += self.alpha * F.mse_loss(
-                m10, F.one_hot(mem0_y, num_classes=self.class_count).float()
-            )
+            loss1 += self.alpha * F.mse_loss(m00, mem0_y)
+            loss2 += self.alpha * F.mse_loss(m10, mem0_y)
 
             loss1 += self.beta * self.base_criterion(m01, mem1_y.long())
             loss2 += self.beta * self.base_criterion(m11, mem1_y.long())

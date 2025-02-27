@@ -305,7 +305,7 @@ class DerppTrainer(Trainer):
         self.mem_iter = mem_iter
         self.mem_bs = mem_bs
         self.mem_size = mem_size
-        self.mem_buffer = MemoryBuffer()
+        self.mem_buffer = MemoryBuffer(mem_size, outputs=True)
 
     def train(self, dataloader, task_name="na"):
         self.model1.train()
@@ -337,31 +337,31 @@ class DerppTrainer(Trainer):
                     x1 = self.model2(X_aug)
 
                     m0batch = self.mem_buffer.get(size=self.mem_bs)
-                    mem0_X, mem0_y = m0batch
+                    mem0_X, __, mem0_outs = m0batch
 
                     m1batch = self.mem_buffer.get(size=self.mem_bs)
-                    mem1_X, mem1_y = m1batch
+                    mem1_X, mem1_y, __ = m1batch
 
                     if mem0_X.size(0) > 0:
                         mem0_X = mem0_X.to(self.device)
                         mem1_X = mem1_X.to(self.device)
+                        mem1_y = mem1_y.to(self.device)
+                        mem0_outs = mem0_outs.to(self.device)
+
                         mem0_X_aug = TRAIN_TRANSFORMS(mem0_X)
                         m00 = self.model1(mem0_X_aug)
                         m10 = self.model2(mem0_X_aug)
-                        mem0_y = mem0_y.to(self.device)
 
                         mem1_X_aug = TRAIN_TRANSFORMS(mem1_X)
                         m01 = self.model1(mem1_X_aug)
                         m11 = self.model2(mem1_X_aug)
-                        mem1_y = mem1_y.to(self.device)
-
                     else:
                         m00 = None
                         m01 = None
                         m10 = None
                         m11 = None
-                        mem0_y = None
                         mem1_y = None
+                        mem0_outs = None
 
                     # Combined batch
                     X, y = self.combine_batch(batch, m1batch)
@@ -403,7 +403,7 @@ class DerppTrainer(Trainer):
                             x13,
                             y_,
                             y,
-                            mem0_y,
+                            mem0_outs,
                             mem1_y,
                         )
                     )
@@ -426,7 +426,8 @@ class DerppTrainer(Trainer):
 
                     self.iter += 1
 
-                self.mem_buffer.add(batch)
+                out = (x0 + x1) / 2.0
+                self.mem_buffer.add((batch[0], batch[1], out))
 
                 tloader.set_postfix(
                     loss_model0=train_loss_model0_avg, loss_model1=train_loss_model1_avg
@@ -436,7 +437,7 @@ class DerppTrainer(Trainer):
 class MemoryBuffer:
     processed_count = 0
 
-    def __init__(self, max_size=200, shape=(3, 32, 32), n_classes=10):
+    def __init__(self, max_size=200, shape=(3, 32, 32), n_classes=10, outputs=False):
         self.n_classes = n_classes
         self.max_size = max_size
         self.shape = shape
@@ -444,9 +445,18 @@ class MemoryBuffer:
             self.max_size, self.shape[0], self.shape[1], self.shape[2]
         ).to(DEVICE)
         self.buffer_labels = LongTensor(self.max_size).to(DEVICE)
+        self.outputs = outputs
+        if outputs:
+            self.buffer_outputs = FloatTensor(self.max_size, n_classes).to(DEVICE)
 
     def get(self, size):
         if self.processed_count < size:
+            if self.outputs:
+                return (
+                    self.buffer_imgs[: self.processed_count],
+                    self.buffer_labels[: self.processed_count],
+                    self.buffer_outputs[: self.processed_count],
+                )
             return (
                 self.buffer_imgs[: self.processed_count],
                 self.buffer_labels[: self.processed_count],
@@ -457,11 +467,16 @@ class MemoryBuffer:
         )
         imgs = self.buffer_imgs[selected_ids]
         lbls = self.buffer_labels[selected_ids]
-
+        if self.outputs:
+            outs = self.buffer_outputs[selected_ids]
+            return imgs, lbls, outs
         return imgs, lbls
 
     def add(self, batch):
-        (imgs, lbls) = batch
+        if self.outputs:
+            (imgs, lbls, outs) = batch
+        else:
+            (imgs, lbls) = batch
         for idx, img in enumerate(imgs):
             # in first case if buffer has space then just add data
             # in second case, as total data viewed becomes larger the
@@ -476,4 +491,6 @@ class MemoryBuffer:
             if data_idx < self.max_size:
                 self.buffer_imgs[data_idx] = img
                 self.buffer_labels[data_idx] = lbls[idx]
+                if self.outputs:
+                    self.buffer_outputs[data_idx] = outs[idx]
             self.processed_count += 1
