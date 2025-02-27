@@ -206,7 +206,7 @@ class ERTrainer(Trainer):
         self.mem_iter = mem_iter
         self.mem_bs = mem_bs
         self.mem_size = mem_size
-        self.mem_buffer = MemoryBuffer()
+        self.mem_buffer = MemoryBuffer(mem_size)
 
     def train(self, dataloader, task_name="na"):
         self.model1.train()
