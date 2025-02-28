@@ -1,11 +1,16 @@
+import os
+import logging
+from collections import defaultdict
+
 import torch
 import numpy as np
+from PIL import Image
 
 from torchvision.datasets.cifar import CIFAR10
-from torch.utils.data import DataLoader
+from torchvision.datasets.utils import download_and_extract_archive
+from torch.utils.data import DataLoader, Dataset
 
 from utils.transforms import LOADER_TRANSFORMS
-import logging
 
 
 class CIFAR10Partial(CIFAR10):
@@ -26,6 +31,113 @@ class CIFAR10Partial(CIFAR10):
         img, target = self.data[index], self.targets[index]
         if self.transform is not None:
             img = self.transform(img)
+        return img, target
+
+    def __len__(self):
+        return len(self.indexes)
+
+
+class TinyImageNet(Dataset):
+    def __init__(self, root: str, train: bool, transform=None, download: bool = True):
+        root_dir = os.path.join(root, "tiny-imagenet-200")
+        self.train = train
+        self.transform = transform
+        self.img_shape = (64, 64, 3)
+
+        url = "http://cs231n.stanford.edu/tiny-imagenet-200.zip"
+        download_and_extract_archive(
+            url,
+            root_dir,
+            filename="tiny-imagenet-200.zip",
+            remove_finished=True,
+            md5="90528d7ca1a48142e341f4ef8d21d0de",
+        )
+        self._make_paths(root_dir)
+
+        if self.train:
+            self.samples = list(self.paths["train"])
+        else:
+            self.samples = list(self.paths["val"])
+
+    def _make_paths(self, root_dir):
+        train_path = os.path.join(root_dir, "train")
+        val_path = os.path.join(root_dir, "val")
+        wnids_path = os.path.join(root_dir, "wnids.txt")
+        words_path = os.path.join(root_dir, "words.txt")
+
+        self.ids = []
+        with open(wnids_path, "r") as idf:
+            for nid in idf:
+                nid = nid.strip()
+                self.ids.append(nid)
+        self.nid_to_words = defaultdict(list)
+        with open(words_path, "r") as wf:
+            for line in wf:
+                nid, labels = line.split("\t")
+                labels = list(map(lambda x: x.strip(), labels.split(",")))
+                self.nid_to_words[nid].extend(labels)
+
+        self.paths = {
+            "train": [],  # [img_path, id, nid, box]
+            "val": [],  # [img_path, id, nid, box]
+        }
+
+        # print(self.paths['test'])
+        # Get the validation paths and labels
+        with open(os.path.join(val_path, "val_annotations.txt")) as valf:
+            for line in valf:
+                fname, nid, x0, y0, x1, y1 = line.split()
+                fname = os.path.join(val_path, "images", fname)
+                bbox = int(x0), int(y0), int(x1), int(y1)
+                label_id = self.ids.index(nid)
+                self.paths["val"].append((fname, label_id, nid, bbox))
+
+        # Get the training paths
+        train_nids = os.listdir(train_path)
+        for nid in train_nids:
+            anno_path = os.path.join(train_path, nid, nid + "_boxes.txt")
+            imgs_path = os.path.join(train_path, nid, "images")
+            label_id = self.ids.index(nid)
+            with open(anno_path, "r") as annof:
+                for line in annof:
+                    fname, x0, y0, x1, y1 = line.split()
+                    fname = os.path.join(imgs_path, fname)
+                    bbox = int(x0), int(y0), int(x1), int(y1)
+                    self.paths["train"].append((fname, label_id, nid, bbox))
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        img, target = Image.open(self.samples[idx][0]), self.samples[idx][1]
+
+        if self.transform:
+            img = self.transform(img)
+        # if img.size(0) == 1:
+        #     img = torch.cat([img, img, img], dim=0)
+        return img, target
+
+
+class TinyImageNetPartial(TinyImageNet):
+    def __init__(self, root, train, transform, download=False, selected_labels=[0]):
+        super().__init__(root=root, train=train, download=download, transform=transform)
+        # convert to tensor for filtering
+        self.selected_labels = torch.Tensor(selected_labels)
+        self.targets = torch.Tensor(self.samples[:, 1])
+        # filtering indices and only keeping ones matching the selected classes
+        self.indexes = torch.nonzero(
+            torch.isin(self.targets, self.selected_labels), as_tuple=True
+        )[0]
+        # filtering data
+        self.f_paths = self.samples[:, 0][self.indexes]
+        self.targets = self.targets[self.indexes]
+
+    def __getitem__(self, index):
+        img, target = Image.open(self.f_paths[index]), self.targets[index]
+        if self.transform is not None:
+            img = self.transform(img)
+        # if img.size(0) == 1:
+        #     img = torch.cat([img, img, img], dim=0)
         return img, target
 
     def __len__(self):
@@ -53,10 +165,9 @@ def get_dataloaders(
         as well i.e. classes used, task id etc.
     """
     dataloaders = {}
-    dataset = "cifar10"
     data_path = "./data"
     batch_size = 10
-    num_workers = 4
+    num_workers = 0
     logger.info(f"DATASET: {dataset}")
 
     # shuffle class order in dataloader
@@ -77,6 +188,21 @@ def get_dataloaders(
                 selected_labels=selected_classes,
             )
             dataset_test = CIFAR10Partial(
+                data_path,
+                train=False,
+                transform=LOADER_TRANSFORMS,
+                download=True,
+                selected_labels=selected_classes,
+            )
+        elif dataset == "tiny":
+            dataset_train = TinyImageNetPartial(
+                data_path,
+                train=True,
+                transform=LOADER_TRANSFORMS,
+                download=True,
+                selected_labels=selected_classes,
+            )
+            dataset_test = TinyImageNetPartial(
                 data_path,
                 train=False,
                 transform=LOADER_TRANSFORMS,

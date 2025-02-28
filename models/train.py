@@ -319,8 +319,8 @@ class DerppTrainer(Trainer):
             for b_id, batch in enumerate(tloader):
                 tloader.set_description(f"[train] Task: {task_name}")
 
-                # if b_id > 2:
-                #     break
+                if b_id > 2:
+                    break
 
                 # Stream data
                 X, y_ = batch

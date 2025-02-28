@@ -9,12 +9,7 @@ from kornia.augmentation import (
     ColorJitter,
     RandomGrayscale,
 )
-
-IMG_SIZE = 32
-MIN_CROP = 0.2
-RANDAUG_N = 3
-RANDAUG_M = 15
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from utils.common import *
 
 LOADER_TRANSFORMS = Compose([ToTensor()])
 

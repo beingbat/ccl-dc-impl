@@ -1,5 +1,2 @@
-- Add more datasets
-    - ImageNet-100 src: [text](https://github.com/danielchyeh/ImageNet-100-Pytorch)
-- Add more models
-    - Der++ src: [text](https://github.com/aimagelab/mammoth/blob/master/models/derpp.py)
-    - OnPro and GSM
+- All Datasets Support
+- All Methods Support
