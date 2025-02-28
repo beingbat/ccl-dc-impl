@@ -1,4 +1,5 @@
 from torch import nn
+from utils.common import TOTAL_CLASSES, DIM_IN
 
 # source: https://pytorch.org/vision/main/_modules/torchvision/models/resnet.html
 # and: https://github.com/danielchyeh/ImageNet-100-Pytorch/blob/main/networks/resnet.py
@@ -89,10 +90,10 @@ class ResNet(nn.Module):
         self,
         block=BasicBlock,
         num_blocks=[2, 2, 2, 2],
-        num_classes=10,
+        num_classes=TOTAL_CLASSES,
         nf=64,
         bias=True,
-        dim_in=512,
+        dim_in=DIM_IN,
         instance_norm=False,
         input_channels=3,
     ):

@@ -34,39 +34,39 @@ def main():
     logger = setup_logging()
     logger.info(f"Total Classes {TOTAL_CLASSES} | Classes Per Task: {CLASSES_PER_TASK}")
 
-    for c_mem_size in MEM_SIZE:
-        for iteration_id in range(EXP_REPITIONS * 2):
-            if iteration_id < EXP_REPITIONS:
-                base = True
-            else:
-                base = False
+    for name in NAME:
+        for c_mem_size in MEM_SIZE:
+            for iteration_id in range(EXP_REPITIONS * 2):
+                if iteration_id < EXP_REPITIONS:
+                    base = True
+                else:
+                    base = False
 
-            logger.info(f"Iteration no. {iteration_id}")
-            logger.info(
-                f"{NAME.upper()}{' + CCL-DC' if not base else ''} | "
-                f"Dataset: {DATASET.upper()} | Mem Size: {c_mem_size}"
-            )
-            dataloaders, classes_order = get_dataloaders(
-                logger=logger,
-                dataset=DATASET,
-                total_classes=TOTAL_CLASSES,
-                classes_per_task=CLASSES_PER_TASK,
-            )
-            model1, optim1 = get_model(NAME)
-            model2, optim2 = get_model(NAME)
-            criterion = get_criterion(NAME, base, TOTAL_CLASSES)
-            trainer_cls = get_trainer(NAME)
-            trainer: Trainer = trainer_cls(
-                model1, model2, optim1, optim2, criterion, mem_size=c_mem_size
-            )
+                logger.info(f"Iteration no. {iteration_id}")
+                logger.info(
+                    f"{name.upper()}{' + CCL-DC' if not base else ''} | "
+                    f"Dataset: {DATASET.upper()} | Mem Size: {c_mem_size}"
+                )
+                dataloaders, classes_order = get_dataloaders(
+                    logger=logger,
+                    dataset=DATASET,
+                    total_classes=TOTAL_CLASSES,
+                    classes_per_task=CLASSES_PER_TASK,
+                )
+                model1, optim1 = get_model(name)
+                model2, optim2 = get_model(name)
+                criterion = get_criterion(name, base, TOTAL_CLASSES)
+                trainer_cls = get_trainer(name)
+                trainer: Trainer = trainer_cls(
+                    model1, model2, optim1, optim2, criterion, mem_size=c_mem_size
+                )
 
-            for task_idx, task_name in enumerate(dataloaders):
-                task_classes = classes_order[task_idx]
-                train_dataloader = dataloaders[task_name]["train"]
-                logger.info(f"Task: {task_name}; Classes: {task_classes}")
-                trainer.train(train_dataloader, task_name)
-                trainer.evaluate(dataloaders, task_idx, logger=logger)
-
+                for task_idx, task_name in enumerate(dataloaders):
+                    task_classes = classes_order[task_idx]
+                    train_dataloader = dataloaders[task_name]["train"]
+                    logger.info(f"Task: {task_name}; Classes: {task_classes}")
+                    trainer.train(train_dataloader, task_name)
+                    trainer.evaluate(dataloaders, task_idx, logger=logger)
 
 if __name__ == "__main__":
     main()

@@ -4,9 +4,9 @@ from models.loss import Loss, LossDerpp
 from models.train import ERTrainer, DerppTrainer
 
 
-def get_model(name="er", no_cls=10, lr=0.0005, weight_decay=1e-4):
+def get_model(name="er", lr=0.0005, weight_decay=1e-4):
     if name == "er" or name == "derpp":
-        resnet18 = ResNet(num_classes=no_cls)
+        resnet18 = ResNet()
         adamw_optim = optim.AdamW(
             resnet18.parameters(), lr=lr, weight_decay=weight_decay
         )
