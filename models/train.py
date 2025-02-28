@@ -15,6 +15,7 @@ from utils.transforms import (
     TEST_TRANSFORMS,
     DEVICE,
 )
+from utils.common import IMG_SIZE, TOTAL_CLASSES
 import random
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix
@@ -48,8 +49,8 @@ class Trainer:
     def combine_batch(self, batch1, batch2):
         x1, y1 = batch1
         x2, y2 = batch2
-        x = cat([x1.to(self.device), x2.to(self.device)])
-        y = cat([y1.to(self.device), y2.to(self.device)])
+        x = cat([x1, x2])
+        y = cat([y1, y2])
         return (x, y)
 
     def evaluate(self, dataloaders, task_id, logger: logging):
@@ -225,8 +226,6 @@ class ERTrainer(Trainer):
 
                 # Stream data
                 X, y = batch
-                X = X.to(self.device)
-                y = y.to(self.device)
                 self.data_counter += len(X)
 
                 for __ in range(self.mem_iter):
@@ -265,11 +264,11 @@ class ERTrainer(Trainer):
                             (x0, x00, x01, x02, x03, x1, x10, x11, x12, x13, y)
                         )
                         train_loss_model0_avg = (
-                            (train_loss_model0_avg * self.iter) + l0.item()
+                            (train_loss_model0_avg * self.iter) + l0.detach().item()
                         ) / (self.iter + 1)
 
                         train_loss_model1_avg = (
-                            (train_loss_model1_avg * self.iter) + l1.item()
+                            (train_loss_model1_avg * self.iter) + l1.detach().item()
                         ) / (self.iter + 1)
 
                         self.optim1.zero_grad()
@@ -281,6 +280,8 @@ class ERTrainer(Trainer):
                         self.optim2.step()
 
                         self.iter += 1
+                        del x0, x00, x01, x02, x03, x1, x10, x11, x12, x13, y, l0, l1
+                        torch.cuda.empty_cache()
 
                 self.mem_buffer.add(batch)
 
@@ -319,8 +320,8 @@ class DerppTrainer(Trainer):
             for b_id, batch in enumerate(tloader):
                 tloader.set_description(f"[train] Task: {task_name}")
 
-                if b_id > 2:
-                    break
+                # if b_id > 5:
+                #     break
 
                 # Stream data
                 X, y_ = batch
@@ -364,9 +365,12 @@ class DerppTrainer(Trainer):
                         mem0_outs = None
 
                     # Combined batch
-                    X, y = self.combine_batch(batch, m1batch[:2])
-                    X = X.to(self.device)
-                    y = y.to(self.device)
+                    if m1batch[0].shape[0] > 0:
+                        X, y = self.combine_batch(batch, m1batch[:2])
+                        X = X.to(self.device)
+                        y = y.to(self.device)
+                    else:
+                        X, y = X, y_
                     # For CCL
                     X_aug1 = AUG_TRANSFORMS1(X)
                     X_aug2 = AUG_TRANSFORMS2(X_aug1)
@@ -437,17 +441,17 @@ class DerppTrainer(Trainer):
 class MemoryBuffer:
     processed_count = 0
 
-    def __init__(self, max_size=200, shape=(3, 32, 32), n_classes=10, outputs=False):
-        self.n_classes = n_classes
+    def __init__(self, max_size=200, outputs=False):
+        self.n_classes = TOTAL_CLASSES
         self.max_size = max_size
-        self.shape = shape
+        self.shape = (3, IMG_SIZE, IMG_SIZE)
         self.buffer_imgs = FloatTensor(
             self.max_size, self.shape[0], self.shape[1], self.shape[2]
-        ).to(DEVICE)
-        self.buffer_labels = LongTensor(self.max_size).to(DEVICE)
+        ).to('cpu')
+        self.buffer_labels = LongTensor(self.max_size).to('cpu')
         self.outputs = outputs
         if outputs:
-            self.buffer_outputs = FloatTensor(self.max_size, n_classes).to(DEVICE)
+            self.buffer_outputs = FloatTensor(self.max_size, self.n_classes).to('cpu')
 
     def get(self, size):
         if self.processed_count < size:
@@ -475,8 +479,13 @@ class MemoryBuffer:
     def add(self, batch):
         if self.outputs:
             (imgs, lbls, outs) = batch
+            imgs = imgs.to('cpu')
+            lbls = lbls.to('cpu')
+            outs = outs.to('cpu')
         else:
             (imgs, lbls) = batch
+            imgs = imgs.to('cpu')
+            lbls = lbls.to('cpu')
         for idx, img in enumerate(imgs):
             # in first case if buffer has space then just add data
             # in second case, as total data viewed becomes larger the
