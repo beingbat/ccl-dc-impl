@@ -1,17 +1,19 @@
 import torch
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+NUM_WORKERS = 0
 
-EXP_REPITIONS = 1
+EXP_REPITIONS = 4
 MIN_CROP = 0.2
 
-DATASET = "tiny"
-IMG_SIZE = 64
-MEM_SIZE = [2000, 5000, 10000]
-RANDAUG_N = 1
-RANDAUG_M = 11
-CLASSES_PER_TASK = 2
-TOTAL_CLASSES = 200
+# DATASET = "tiny"
+# IMG_SIZE = 64
+# MEM_SIZE = [2000, 5000, 10000]
+# RANDAUG_N = 1
+# RANDAUG_M = 11
+# CLASSES_PER_TASK = 2
+# TOTAL_CLASSES = 4
+# DIM_IN = 2048
 
 # DATASET = "cifar10"
 # IMG_SIZE = 32
@@ -21,6 +23,16 @@ TOTAL_CLASSES = 200
 # RANDAUG_M = 15
 # CLASSES_PER_TASK = 2
 # TOTAL_CLASSES = 10
+# DIM_IN = 512
 
-NAME = "er"
-# NAME = "derpp"
+DATASET = "cifar100"
+IMG_SIZE = 32
+MEM_SIZE = [1000, 2000, 5000]
+MIN_CROP = 0.2
+RANDAUG_N = 3
+RANDAUG_M = 15
+CLASSES_PER_TASK = 2
+TOTAL_CLASSES = 100
+DIM_IN = 512
+
+NAME = ["er", "derpp"]

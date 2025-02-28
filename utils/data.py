@@ -6,11 +6,36 @@ import torch
 import numpy as np
 from PIL import Image
 
-from torchvision.datasets.cifar import CIFAR10
+from torchvision.datasets.cifar import CIFAR10, CIFAR100
 from torchvision.datasets.utils import download_and_extract_archive
 from torch.utils.data import DataLoader, Dataset
-
+from utils.common import NUM_WORKERS
 from utils.transforms import LOADER_TRANSFORMS
+
+
+
+class CIFAR100Partial(CIFAR100):
+    def __init__(self, root, train, transform, download=False, selected_labels=[0]):
+        super().__init__(root=root, train=train, download=download, transform=transform)
+        # convert to tensor for filtering
+        self.selected_labels = torch.Tensor(selected_labels)
+        self.targets = torch.Tensor(self.targets)
+        # filtering indices and only keeping ones matching the selected classes
+        self.indexes = torch.nonzero(
+            torch.isin(self.targets, self.selected_labels), as_tuple=True
+        )[0]
+        # filtering data
+        self.data = self.data[self.indexes]
+        self.targets = self.targets[self.indexes]
+
+    def __getitem__(self, index):
+        img, target = self.data[index], self.targets[index]
+        if self.transform is not None:
+            img = self.transform(img)
+        return img, target
+
+    def __len__(self):
+        return len(self.indexes)
 
 
 class CIFAR10Partial(CIFAR10):
@@ -47,9 +72,9 @@ class TinyImageNet(Dataset):
         url = "http://cs231n.stanford.edu/tiny-imagenet-200.zip"
         download_and_extract_archive(
             url,
-            root_dir,
+            root,
             filename="tiny-imagenet-200.zip",
-            remove_finished=True,
+            remove_finished=False,
             md5="90528d7ca1a48142e341f4ef8d21d0de",
         )
         self._make_paths(root_dir)
@@ -113,8 +138,8 @@ class TinyImageNet(Dataset):
 
         if self.transform:
             img = self.transform(img)
-        # if img.size(0) == 1:
-        #     img = torch.cat([img, img, img], dim=0)
+        if img.size(0) == 1:
+            img = torch.cat([img, img, img], dim=0)
         return img, target
 
 
@@ -123,21 +148,24 @@ class TinyImageNetPartial(TinyImageNet):
         super().__init__(root=root, train=train, download=download, transform=transform)
         # convert to tensor for filtering
         self.selected_labels = torch.Tensor(selected_labels)
-        self.targets = torch.Tensor(self.samples[:, 1])
+        self.targets = [smpl[1] for smpl in self.samples]
+        self.f_paths = [smpl[0] for smpl in self.samples]
+        self.targets = torch.Tensor(self.targets)
         # filtering indices and only keeping ones matching the selected classes
         self.indexes = torch.nonzero(
             torch.isin(self.targets, self.selected_labels), as_tuple=True
         )[0]
         # filtering data
-        self.f_paths = self.samples[:, 0][self.indexes]
+        self.f_paths = np.array(self.f_paths)[self.indexes]
         self.targets = self.targets[self.indexes]
+        del self.samples
 
     def __getitem__(self, index):
         img, target = Image.open(self.f_paths[index]), self.targets[index]
         if self.transform is not None:
             img = self.transform(img)
-        # if img.size(0) == 1:
-        #     img = torch.cat([img, img, img], dim=0)
+        if img.size(0) == 1:
+            img = torch.cat([img, img, img], dim=0)
         return img, target
 
     def __len__(self):
@@ -167,7 +195,7 @@ def get_dataloaders(
     dataloaders = {}
     data_path = "./data"
     batch_size = 10
-    num_workers = 0
+    num_workers = NUM_WORKERS
     logger.info(f"DATASET: {dataset}")
 
     # shuffle class order in dataloader
@@ -188,6 +216,21 @@ def get_dataloaders(
                 selected_labels=selected_classes,
             )
             dataset_test = CIFAR10Partial(
+                data_path,
+                train=False,
+                transform=LOADER_TRANSFORMS,
+                download=True,
+                selected_labels=selected_classes,
+            )
+        elif dataset == "cifar100":
+            dataset_train = CIFAR100Partial(
+                data_path,
+                train=True,
+                transform=LOADER_TRANSFORMS,
+                download=True,
+                selected_labels=selected_classes,
+            )
+            dataset_test = CIFAR100Partial(
                 data_path,
                 train=False,
                 transform=LOADER_TRANSFORMS,
