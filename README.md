@@ -1,3 +1,9 @@
+Re-implementation of the paper: [Improving Plasticity in Online Continual Learning via Collaborative Learning - CVPR 2024](https://openaccess.thecvf.com/content/CVPR2024/papers/Wang_Improving_Plasticity_in_Online_Continual_Learning_via_Collaborative_Learning_CVPR_2024_paper.pdf)
+
+Original code can be found at: https://github.com/maorong-wang/CCL-DC/tree/main
+
+`REPRODUCED NUMBERS`
+
 ```
 ===================
 ER 
