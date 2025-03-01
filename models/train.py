@@ -370,7 +370,7 @@ class DerppTrainer(Trainer):
                         X = X.to(self.device)
                         y = y.to(self.device)
                     else:
-                        X, y = X, y_
+                        y = y_
                     # For CCL
                     X_aug1 = AUG_TRANSFORMS1(X)
                     X_aug2 = AUG_TRANSFORMS2(X_aug1)
@@ -445,13 +445,11 @@ class MemoryBuffer:
         self.n_classes = TOTAL_CLASSES
         self.max_size = max_size
         self.shape = (3, IMG_SIZE, IMG_SIZE)
-        self.buffer_imgs = FloatTensor(
-            self.max_size, self.shape[0], self.shape[1], self.shape[2]
-        ).to('cpu')
-        self.buffer_labels = LongTensor(self.max_size).to('cpu')
+        self.buffer_imgs = FloatTensor(self.max_size, 3, IMG_SIZE, IMG_SIZE).to("cpu")
+        self.buffer_labels = LongTensor(self.max_size).to("cpu")
         self.outputs = outputs
         if outputs:
-            self.buffer_outputs = FloatTensor(self.max_size, self.n_classes).to('cpu')
+            self.buffer_outputs = FloatTensor(self.max_size, self.n_classes).to("cpu")
 
     def get(self, size):
         if self.processed_count < size:
@@ -479,13 +477,13 @@ class MemoryBuffer:
     def add(self, batch):
         if self.outputs:
             (imgs, lbls, outs) = batch
-            imgs = imgs.to('cpu')
-            lbls = lbls.to('cpu')
-            outs = outs.to('cpu')
+            imgs = imgs.to("cpu")
+            lbls = lbls.to("cpu")
+            outs = outs.to("cpu")
         else:
             (imgs, lbls) = batch
-            imgs = imgs.to('cpu')
-            lbls = lbls.to('cpu')
+            imgs = imgs.to("cpu")
+            lbls = lbls.to("cpu")
         for idx, img in enumerate(imgs):
             # in first case if buffer has space then just add data
             # in second case, as total data viewed becomes larger the
