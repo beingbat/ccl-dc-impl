@@ -2,7 +2,13 @@ import torch
 from torch import nn
 
 from torch import nn
-from torchvision.transforms import RandAugment, Compose, ToTensor, ConvertImageDtype
+from torchvision.transforms import (
+    RandAugment,
+    Compose,
+    ToTensor,
+    ConvertImageDtype,
+    RandomCrop,
+)
 from kornia.augmentation import (
     RandomResizedCrop,
     RandomHorizontalFlip,
@@ -18,6 +24,10 @@ TRAIN_TRANSFORMS = nn.Sequential(
     RandomHorizontalFlip(),
     ColorJitter(0.4, 0.4, 0.4, 0.1, p=0.8),
     RandomGrayscale(p=0.2),
+)
+
+TRAIN_TRANSFORMS_PARTIAL = nn.Sequential(
+    RandomCrop(IMG_SIZE, padding=4), RandomHorizontalFlip()
 )
 
 AUG_TRANSFORMS1 = nn.Sequential(

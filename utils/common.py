@@ -1,9 +1,12 @@
 import torch
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-NUM_WORKERS = 0
+NUM_WORKERS = 8
 
-EXP_REPITIONS = 4
+NAME = ["derpp"]
+# NAME = ["er", "derpp"]
+
+EXP_REPITIONS = 2
 MIN_CROP = 0.2
 
 # DATASET = "tiny"
@@ -34,5 +37,3 @@ RANDAUG_M = 15
 CLASSES_PER_TASK = 2
 TOTAL_CLASSES = 100
 DIM_IN = 512
-
-NAME = ["er", "derpp"]

@@ -9,6 +9,7 @@ import torch
 from torch import nn, optim, cat, FloatTensor, LongTensor
 from utils.transforms import (
     TRAIN_TRANSFORMS,
+    TRAIN_TRANSFORMS_PARTIAL,
     AUG_TRANSFORMS1,
     AUG_TRANSFORMS2,
     AUG_TRANSFORMS3,
@@ -331,7 +332,7 @@ class DerppTrainer(Trainer):
 
                 for __ in range(self.mem_iter):
                     # Default Loss Aug
-                    X_aug = TRAIN_TRANSFORMS(X)
+                    X_aug = TRAIN_TRANSFORMS_PARTIAL(X)
 
                     # Baseline infer
                     x0 = self.model1(X_aug)
@@ -349,11 +350,11 @@ class DerppTrainer(Trainer):
                         mem1_y = mem1_y.to(self.device)
                         mem0_outs = mem0_outs.to(self.device)
 
-                        mem0_X_aug = TRAIN_TRANSFORMS(mem0_X)
+                        mem0_X_aug = TRAIN_TRANSFORMS_PARTIAL(mem0_X)
                         m00 = self.model1(mem0_X_aug)
                         m10 = self.model2(mem0_X_aug)
 
-                        mem1_X_aug = TRAIN_TRANSFORMS(mem1_X)
+                        mem1_X_aug = TRAIN_TRANSFORMS_PARTIAL(mem1_X)
                         m01 = self.model1(mem1_X_aug)
                         m11 = self.model2(mem1_X_aug)
                     else:
